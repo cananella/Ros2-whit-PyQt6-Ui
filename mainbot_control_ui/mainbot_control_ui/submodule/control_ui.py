@@ -304,7 +304,7 @@ class Ui_Form(object):
         self.tab_2.setObjectName("tab_2")
         self.gridLayout_5 = QtWidgets.QGridLayout(self.tab_2)
         self.gridLayout_5.setObjectName("gridLayout_5")
-        self.imu_graph_widget = PlotWidget(parent=self.tab_2)
+        self.imu_graph_widget = QtWidgets.QWidget(parent=self.tab_2)
         self.imu_graph_widget.setObjectName("imu_graph_widget")
         self.gridLayout_5.addWidget(self.imu_graph_widget, 0, 0, 1, 1)
         self.tabWidget.addTab(self.tab_2, "")
@@ -345,7 +345,6 @@ class Ui_Form(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_1), _translate("Form", "map"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("Form", "Imu graph"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_3), _translate("Form", "tab"))
-from plotgraph import PlotWidget
 
 
 if __name__ == "__main__":

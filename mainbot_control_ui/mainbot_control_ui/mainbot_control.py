@@ -1,5 +1,5 @@
 import sys
-import math, time
+import math
 import numpy as np
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QPixmap, QColor, QPen
 import mainbot_control_ui.submodule.control_ui as control_ui
+import mainbot_control_ui.submodule.mainbot_control_window as mainbot_control_window
 import mainbot_control_ui.submodule.publisher as pub
 import mainbot_control_ui.submodule.subscriber as sub
 import rclpy
@@ -21,35 +22,27 @@ MAP_X_SIZE=500
 MAP_Y_SIZE=500
 
 
-class ros_Tread1(QThread):
+class ros_Tread(QThread):
+    slot = pyqtSignal()
     def __init__(self):
         super().__init__()
 
+
+
     def run(self):
         while rclpy.ok():
-            try:
-                rclpy.spin_once(sub_angvel_node, timeout_sec=0.01)
-                rclpy.spin_once(sub_tf_node, timeout_sec=0.01)
-                rclpy.spin_once(sub_imu_node, timeout_sec=0.01)
-                rclpy.spin_once(sub_lidar_node, timeout_sec=0.01)
-                window.set_motor_ang_vel_label()
-                window.update_imu_data()
-                window.update_laser_scan_data()
-                window.pub_target_vel_msg()
+            self.slot.emit()
+            self.msleep(100)
 
-            except KeyboardInterrupt:
-                pass
 
-        sub_imu_node.destroy_node()
-        sub_tf_node.destroy_node()
-        sub_angvel_node.destroy_node()
-        sub_lidar_node.destroy_node()
-        pub_target_vel_nod.destroy_node()
-        rclpy.shutdown()
 
-class UI(QWidget):
+
+
+
+class UI(QDialog,QWidget):   #Qwidget, Qwindow
     def __init__(self, parent=None):
         super(UI, self).__init__(parent)
+        # self.ui = mainbot_control_window.Ui_mainbot_contorl_window()
         self.ui = control_ui.Ui_Form()
         self.ui.setupUi(self)
         self.ui.retranslateUi(self)
@@ -60,6 +53,15 @@ class UI(QWidget):
         self.mainbot_imu = Imu()
         self.laser_scan = LaserScan()
 
+        #ros2_node init
+        print("mainbot ros node start")
+        rclpy.init()
+        self.pub_target_vel_nod = pub.pub_target_vel()
+        self.sub_angvel_node = sub.sub_motor_anlvel()
+        self.sub_imu_node = sub.sub_imu_data()
+        self.sub_tf_node = sub.sub_tf_data()
+        self.sub_lidar_node = sub.sub_lidar_data()
+
         self.Vx_vel = 0.0
         self.Vy_vel = 0.0
         self.W_vel = 0.0
@@ -68,11 +70,10 @@ class UI(QWidget):
         self.mainbot_w = 0
         self.mainbot_pos_x=0
         self.mainbot_pos_y=0
-
+        self.ros_update_flag = True
         self.move_update_flag = False
         self.mainbot_moving_log = [[0 for j in range(4)] for i in range(MOVING_LOG_SIZE)]
         self.save_moving_data_size = 0
-
         self.ui.Vx_doubleSpinBox.valueChanged.connect(self.spin_selected)
         self.ui.Vy_doubleSpinBox.valueChanged.connect(self.spin_selected)
         self.ui.W_doubleSpinBox.valueChanged.connect(self.spin_w_selected)
@@ -109,11 +110,42 @@ class UI(QWidget):
         self.ui.map.setScene(self.scene3)
         self.ui.map.show()
 
-        self.plot([])
+        # self.T1 = ros_Tread()
+        # self.T1.start()
+        # self.T1.slot.connect(self.update_ros_nodes)
 
+        self.map_update_timer = QTimer()
+        self.map_update_timer.timeout.connect(self.update_map_window)
+        self.map_update_timer.start(int(1000 / 20))  # 20FPS
 
-        self.T1 = ros_Tread1()
-        self.T1.start()
+        self.ros_update_timer= QTimer()
+        self.ros_update_timer.timeout.connect(self.update_ros_nodes)
+        self.ros_update_timer.start(10)
+
+    def window_close(self):
+        self.map_update_timer.stop()
+        self.ros_update_timer.stop()
+        self.sub_imu_node.destroy_node()
+        self.sub_tf_node.destroy_node()
+        self.sub_angvel_node.destroy_node()
+        self.sub_lidar_node.destroy_node()
+        self.pub_target_vel_nod.destroy_node()
+        rclpy.shutdown()
+        print("mainbot ros node shutdown")
+
+    def update_ros_nodes(self):
+        if rclpy.ok() and self.ros_update_flag:
+            rclpy.spin_once(self.sub_angvel_node, timeout_sec=0.01)
+            rclpy.spin_once(self.sub_tf_node, timeout_sec=0.01)
+            rclpy.spin_once(self.sub_imu_node, timeout_sec=0.01)
+            rclpy.spin_once(self.sub_lidar_node, timeout_sec=0.01)
+            self.set_motor_ang_vel_label()
+            self.update_imu_data()
+            self.update_laser_scan_data()
+            self.pub_target_vel_msg()
+        elif not rclpy.ok() or not self.ros_update_flag:
+            self.window_close()
+
 
     def update_map_window(self):
         if not (self.ui.tab_1.isHidden()):
@@ -122,6 +154,13 @@ class UI(QWidget):
                 self.show_laser_scan_on_map()
             self.update_mainbot_orientation_log()
             self.show_mainbot_odom_on_map()
+
+        elif not(self.ui.tab_2.isHidden()):
+            pass
+
+        elif not(self.ui.tab_3.isHidden()):
+            pass
+
 
 
     def set_vel_veiw_scene2(self):
@@ -139,10 +178,10 @@ class UI(QWidget):
         self.ui.W_value.setText('{:.2f}'.format(self.W_vel))
 
     def set_motor_ang_vel_label(self):
-        self.ui.FL_angVel.setText('{:.2f}'.format(sub_angvel_node.FL_Motor_Angvel))
-        self.ui.FR_angVel.setText('{:.2f}'.format(sub_angvel_node.FR_Motor_Angvel))
-        self.ui.BL_angVel.setText('{:.2f}'.format(sub_angvel_node.BL_Motor_Angvel))
-        self.ui.BR_angVel.setText('{:.2f}'.format(sub_angvel_node.BR_Motor_Angvel))
+        self.ui.FL_angVel.setText('{:.2f}'.format(self.sub_angvel_node.FL_Motor_Angvel))
+        self.ui.FR_angVel.setText('{:.2f}'.format(self.sub_angvel_node.FR_Motor_Angvel))
+        self.ui.BL_angVel.setText('{:.2f}'.format(self.sub_angvel_node.BL_Motor_Angvel))
+        self.ui.BR_angVel.setText('{:.2f}'.format(self.sub_angvel_node.BR_Motor_Angvel))
 
     def show_mainbot_odom_on_map(self):
         line_len=10
@@ -169,16 +208,16 @@ class UI(QWidget):
             k+=1
 
     def update_laser_scan_data(self):
-        self.laser_scan = sub_lidar_node.lidar_data
+        self.laser_scan = self.sub_lidar_node.lidar_data
 
     def update_imu_data(self):
         tempx = self.mainbot_x
         tempy = self.mainbot_y
         tempw = self.mainbot_w
-        self.mainbot_imu = sub_imu_node.Imu_data
-        self.mainbot_x = int(sub_imu_node.Imu_data.orientation.x * 100) / 5  # cm/ 5pix
-        self.mainbot_y = int(sub_imu_node.Imu_data.orientation.y * 100) / 5
-        self.mainbot_w = int(sub_imu_node.Imu_data.orientation.w * 100) / 5
+        self.mainbot_imu = self.sub_imu_node.Imu_data
+        self.mainbot_x = int(self.sub_imu_node.Imu_data.orientation.x * 100) / 5  # cm/ 5pix
+        self.mainbot_y = int(self.sub_imu_node.Imu_data.orientation.y * 100) / 5
+        self.mainbot_w = int(self.sub_imu_node.Imu_data.orientation.w * 100) / 5
         if not (tempx == self.mainbot_x and tempy == self.mainbot_y and tempw == self.mainbot_w):
             self.move_update_flag = True
 
@@ -211,8 +250,8 @@ class UI(QWidget):
         self.ui.W_horizontalSlider.setValue(int(self.W_vel * 100))
 
     def pub_target_vel_msg(self):
-        pub_target_vel_nod.update_msg(self.Vx_vel, self.Vy_vel, self.W_vel)
-        rclpy.spin_once(pub_target_vel_nod)
+        self.pub_target_vel_nod.update_msg(self.Vx_vel, self.Vy_vel, self.W_vel)
+        rclpy.spin_once(self.pub_target_vel_nod)
 
     def scroll_selected(self):
         self.Vx_vel = self.ui.Vx_horizontalSlider.value() / 100.0
@@ -264,30 +303,16 @@ class UI(QWidget):
         self.set_vel_veiw_scene2()
 
 
-def main(args=None):
-    rclpy.init(args=args)
-    global pub_target_vel_nod
-    global sub_angvel_node
-    global window
-    global sub_tf_node
-    global sub_imu_node
-    global sub_lidar_node
-    pub_target_vel_nod = pub.pub_target_vel()
-    sub_angvel_node = sub.sub_motor_anlvel()
-    sub_imu_node = sub.sub_imu_data()
-    sub_tf_node = sub.sub_tf_data()
-    sub_lidar_node = sub.sub_lidar_data()
-    app = QApplication(sys.argv)
-    window = UI()
-    window.show()
 
-    timer= QTimer()
-    timer.timeout.connect(window.update_map_window)
-    timer.start(100)
+def main(args=None):
+    app = QApplication(sys.argv)
+    mainbot_window = UI()
+    mainbot_window.show()
 
 
     try:
         sys.exit(app.exec())
+
     except KeyboardInterrupt:
         pass
 

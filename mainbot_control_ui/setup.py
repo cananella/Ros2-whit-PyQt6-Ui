@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mainbot_control = mainbot_control_ui.mainbot_control:main',
+            'main_window = mainbot_control_ui.mainwindow:main'
 
         ],
     },

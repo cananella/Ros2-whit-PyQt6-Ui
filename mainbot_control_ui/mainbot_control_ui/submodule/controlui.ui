@@ -673,7 +673,7 @@
         </attribute>
         <layout class="QGridLayout" name="gridLayout_5">
          <item row="0" column="0">
-          <widget class="PlotWidget" name="imu_graph_widget" native="true"/>
+          <widget class="QWidget" name="imu_graph_widget" native="true"/>
          </item>
         </layout>
        </widget>
@@ -688,14 +688,6 @@
    </item>
   </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>PlotWidget</class>
-   <extends>QWidget</extends>
-   <header>plotgraph.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>
