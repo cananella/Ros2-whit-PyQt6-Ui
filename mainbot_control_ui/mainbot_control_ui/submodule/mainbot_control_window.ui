@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>956</width>
-    <height>799</height>
+    <width>976</width>
+    <height>795</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -409,13 +409,6 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label">
-              <property name="text">
-               <string>m/s</string>
-              </property>
-             </widget>
-            </item>
-            <item>
              <widget class="QDoubleSpinBox" name="Vx_doubleSpinBox">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -489,13 +482,6 @@
               </property>
               <property name="text">
                <string>0.00</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="label_2">
-              <property name="text">
-               <string>m/s</string>
               </property>
              </widget>
             </item>
@@ -583,13 +569,6 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_3">
-              <property name="text">
-               <string>rad/s</string>
-              </property>
-             </widget>
-            </item>
-            <item>
              <widget class="QDoubleSpinBox" name="W_doubleSpinBox">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -644,7 +623,7 @@
       <item row="0" column="0">
        <widget class="QTabWidget" name="tabWidget_2">
         <property name="currentIndex">
-         <number>0</number>
+         <number>1</number>
         </property>
         <widget class="QWidget" name="tab_1">
          <attribute name="title">
@@ -683,7 +662,11 @@
          </attribute>
          <layout class="QGridLayout" name="gridLayout_8">
           <item row="0" column="0">
-           <widget class="QWidget" name="imu_graph_widget" native="true"/>
+           <widget class="QGroupBox" name="Imu_graph_box">
+            <property name="title">
+             <string>IMU graph</string>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>
@@ -703,7 +686,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>956</width>
+     <width>976</width>
      <height>28</height>
     </rect>
    </property>

@@ -1,48 +1,52 @@
 import sys
 import math
 import numpy as np
-import matplotlib
-matplotlib.use('Qt5Agg')
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QPixmap, QColor, QPen
 import mainbot_control_ui.submodule.control_ui as control_ui
-import mainbot_control_ui.submodule.mainbot_control_window as mainbot_control_window
 import mainbot_control_ui.submodule.publisher as pub
 import mainbot_control_ui.submodule.subscriber as sub
 import rclpy
 from sensor_msgs.msg import Imu, LaserScan
+import pyqtgraph as pg
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
 
 
 MOVING_LOG_SIZE = 100
 MAP_X_SIZE=500
 MAP_Y_SIZE=500
 
-
 class ros_Tread(QThread):
-    slot = pyqtSignal()
-    def __init__(self):
+    def __init__(self,ui):
         super().__init__()
-
+        self.ui=ui
 
 
     def run(self):
-        while rclpy.ok():
-            self.slot.emit()
-            self.msleep(100)
+        while rclpy.ok() and self.ui.ros_update_flag :
+            try:
+                rclpy.spin_once(self.ui.sub_angvel_node, timeout_sec=0.01)
+                rclpy.spin_once(self.ui.sub_tf_node, timeout_sec=0.01)
+                rclpy.spin_once(self.ui.sub_imu_node, timeout_sec=0.01)
+                rclpy.spin_once(self.ui.sub_lidar_node, timeout_sec=0.01)
+                self.ui.set_motor_ang_vel_label()
+                self.ui.update_imu_data()
+                self.ui.update_laser_scan_data()
+                self.ui.pub_target_vel_msg()
+
+            except KeyboardInterrupt:
+                pass
+
+    def stop(self):
+        self.ui.ros_update_flag = False
+        self.quit()
+        self.wait(100)
 
 
-
-
-
-
-class UI(QDialog,QWidget):   #Qwidget, Qwindow
+class UI(QDialog,QWidget):
     def __init__(self, parent=None):
         super(UI, self).__init__(parent)
-        # self.ui = mainbot_control_window.Ui_mainbot_contorl_window()
         self.ui = control_ui.Ui_Form()
         self.ui.setupUi(self)
         self.ui.retranslateUi(self)
@@ -73,7 +77,7 @@ class UI(QDialog,QWidget):   #Qwidget, Qwindow
         self.ros_update_flag = True
         self.move_update_flag = False
         self.mainbot_moving_log = [[0 for j in range(4)] for i in range(MOVING_LOG_SIZE)]
-        self.save_moving_data_size = 0
+        self.saved_moving_data_size = 0
         self.ui.Vx_doubleSpinBox.valueChanged.connect(self.spin_selected)
         self.ui.Vy_doubleSpinBox.valueChanged.connect(self.spin_selected)
         self.ui.W_doubleSpinBox.valueChanged.connect(self.spin_w_selected)
@@ -110,21 +114,77 @@ class UI(QDialog,QWidget):   #Qwidget, Qwindow
         self.ui.map.setScene(self.scene3)
         self.ui.map.show()
 
-        # self.T1 = ros_Tread()
-        # self.T1.start()
-        # self.T1.slot.connect(self.update_ros_nodes)
+        self.grap_init()
 
-        self.map_update_timer = QTimer()
-        self.map_update_timer.timeout.connect(self.update_map_window)
-        self.map_update_timer.start(int(1000 / 20))  # 20FPS
 
+        self.T1 = ros_Tread(ui=self)
+        self.T1.start()
+
+        """
+        # anoter way that ros_Tread didnt work (QThead => QTimer)
+        
         self.ros_update_timer= QTimer()
         self.ros_update_timer.timeout.connect(self.update_ros_nodes)
         self.ros_update_timer.start(10)
+        """
+
+        self.map_update_timer = QTimer()
+        self.map_update_timer.timeout.connect(self.update_graphics_window)
+        self.map_update_timer.start(int(1000 / 20))  # 20FPS
+
+        self.accel_update_timer = QTimer()
+        self.accel_update_timer.timeout.connect(self.update_accel_plot_data)
+        self.accel_update_timer.start(int(1000/5))  # 5 Hz
+
+
+    def update_accel_plot_data(self):
+        self.time_x = self.time_x[1:]
+        self.time_x.append(self.time_x[-1] + 1)  # Add a new value 1 higher than the last.
+
+        self.accel_ang_y[0]=self.accel_ang_y[0][1:]
+        self.accel_ang_y[0].append(self.mainbot_imu.angular_velocity.x)
+        self.accel_ang_y[1] = self.accel_ang_y[1][1:]
+        self.accel_ang_y[1].append(self.mainbot_imu.angular_velocity.y)
+        self.accel_ang_y[2] = self.accel_ang_y[2][1:]
+        self.accel_ang_y[2].append(self.mainbot_imu.angular_velocity.z)
+        self.ang_accel_line_x.setData(self.time_x, self.accel_ang_y[0])
+        self.ang_accel_line_y.setData(self.time_x, self.accel_ang_y[1])
+        self.ang_accel_line_z.setData(self.time_x, self.accel_ang_y[2])
+
+
+        self.accel_linear_y[0] = self.accel_linear_y[0][1:]
+        self.accel_linear_y[0].append(self.mainbot_imu.linear_acceleration.x)
+        self.accel_linear_y[1] = self.accel_linear_y[1][1:]
+        self.accel_linear_y[1].append(self.mainbot_imu.linear_acceleration.y)
+        self.accel_linear_y[2] = self.accel_linear_y[2][1:]
+        self.accel_linear_y[2].append(self.mainbot_imu.linear_acceleration.z)
+        self.linear_accel_line_x.setData(self.time_x, self.accel_linear_y[0])
+        self.linear_accel_line_y.setData(self.time_x, self.accel_linear_y[1])
+        self.linear_accel_line_z.setData(self.time_x, self.accel_linear_y[2])
+
+        self.odme_y[0] = self.odme_y[0][1:]
+        self.odme_y[0].append(self.mainbot_imu.orientation.x)
+        self.odme_y[1] = self.odme_y[1][1:]
+        self.odme_y[1].append(self.mainbot_imu.orientation.y)
+        self.odme_y[2] = self.odme_y[2][1:]
+        self.odme_y[2].append(self.mainbot_imu.orientation.w)
+        self.odme_line_x.setData(self.time_x, self.odme_y[0])
+        self.odme_line_y.setData(self.time_x, self.odme_y[1])
+        self.odme_line_w.setData(self.time_x, self.odme_y[2])
+
+
 
     def window_close(self):
-        self.map_update_timer.stop()
-        self.ros_update_timer.stop()
+        if self.map_update_timer.isActive():
+            self.map_update_timer.stop()
+        if self.accel_update_timer.isActive():
+            self.map_update_timer.stop()
+        """
+        #if ros_node turn on wiht QTimer
+        if self.ros_update_timer.isActive():
+            self.ros_update_timer.stop()
+        """
+        self.T1.stop()
         self.sub_imu_node.destroy_node()
         self.sub_tf_node.destroy_node()
         self.sub_angvel_node.destroy_node()
@@ -132,6 +192,7 @@ class UI(QDialog,QWidget):   #Qwidget, Qwindow
         self.pub_target_vel_nod.destroy_node()
         rclpy.shutdown()
         print("mainbot ros node shutdown")
+
 
     def update_ros_nodes(self):
         if rclpy.ok() and self.ros_update_flag:
@@ -147,12 +208,11 @@ class UI(QDialog,QWidget):   #Qwidget, Qwindow
             self.window_close()
 
 
-    def update_map_window(self):
+    def update_graphics_window(self):
         if not (self.ui.tab_1.isHidden()):
             self.scene3.clear()
             if self.ui.laser_scan_view_state.isChecked():
                 self.show_laser_scan_on_map()
-            self.update_mainbot_orientation_log()
             self.show_mainbot_odom_on_map()
 
         elif not(self.ui.tab_2.isHidden()):
@@ -185,11 +245,12 @@ class UI(QDialog,QWidget):   #Qwidget, Qwindow
 
     def show_mainbot_odom_on_map(self):
         line_len=10
-        for i in range(self.save_moving_data_size):
+        resol = 10  # cm/10pix
+        for i in range(self.saved_moving_data_size):
             pen = QPen(QColor(200, MOVING_LOG_SIZE - i, MOVING_LOG_SIZE - i))
             pen.setWidth(3)
-            self.mainbot_pos_x = self.map_x_zeropoint + self.mainbot_moving_log[i][1]
-            self.mainbot_pos_y = self.map_y_zeropoint + self.mainbot_moving_log[i][2]
+            self.mainbot_pos_x = self.map_x_zeropoint + self.mainbot_moving_log[i][1] * resol
+            self.mainbot_pos_y = self.map_y_zeropoint + self.mainbot_moving_log[i][2] * resol
             x= self.mainbot_pos_x -2
             y= self.mainbot_pos_y -2
             self.scene3.addEllipse(x, y, 5, 5, pen)
@@ -214,30 +275,26 @@ class UI(QDialog,QWidget):   #Qwidget, Qwindow
         tempx = self.mainbot_x
         tempy = self.mainbot_y
         tempw = self.mainbot_w
+        resol=100  #m->cm
         self.mainbot_imu = self.sub_imu_node.Imu_data
-        self.mainbot_x = int(self.sub_imu_node.Imu_data.orientation.x * 100) / 5  # cm/ 5pix
-        self.mainbot_y = int(self.sub_imu_node.Imu_data.orientation.y * 100) / 5
-        self.mainbot_w = int(self.sub_imu_node.Imu_data.orientation.w * 100) / 5
-        if not (tempx == self.mainbot_x and tempy == self.mainbot_y and tempw == self.mainbot_w):
-            self.move_update_flag = True
+        time = pow(self.mainbot_imu.header.stamp.sec + self.mainbot_imu.header.stamp.nanosec / 10 ** 9, 4) #sec
+        self.mainbot_x = int(self.sub_imu_node.Imu_data.orientation.x * resol) # cm
+        self.mainbot_y = int(self.sub_imu_node.Imu_data.orientation.y * resol)
+        self.mainbot_w = int(self.sub_imu_node.Imu_data.orientation.w )
 
-    def update_mainbot_orientation_log(self):
-        time = self.mainbot_imu.header.stamp.sec + self.mainbot_imu.header.stamp.nanosec / 10 ** 9
-        x = self.mainbot_imu.orientation.x
-        y = self.mainbot_imu.orientation.y
-        w = self.mainbot_imu.orientation.w
-        if self.move_update_flag:
-            if self.save_moving_data_size < MOVING_LOG_SIZE:
-                self.mainbot_moving_log[self.save_moving_data_size][0] = time
-                self.mainbot_moving_log[self.save_moving_data_size][1] = x
-                self.mainbot_moving_log[self.save_moving_data_size][2] = y
-                self.mainbot_moving_log[self.save_moving_data_size][3] = w
-                self.save_moving_data_size += 1
+        #moving log update
+        if not (tempx == self.mainbot_x and tempy == self.mainbot_y and tempw == self.mainbot_w):
+            if self.saved_moving_data_size < MOVING_LOG_SIZE:
+                self.mainbot_moving_log[self.saved_moving_data_size][0] = time
+                self.mainbot_moving_log[self.saved_moving_data_size][1] = self.mainbot_x
+                self.mainbot_moving_log[self.saved_moving_data_size][2] = self.mainbot_y
+                self.mainbot_moving_log[self.saved_moving_data_size][3] = self.mainbot_w
+                self.saved_moving_data_size += 1
             else:
                 self.mainbot_moving_log.pop(0)
-                data = [time, x, y, w]
+                data = [time, self.mainbot_x, self.mainbot_y, self.mainbot_w]
                 self.mainbot_moving_log.append(data)
-            self.move_update_flag = False
+
 
     def set_vel_velue_spinbox(self):
         self.ui.Vx_doubleSpinBox.setValue(self.Vx_vel)
@@ -301,6 +358,63 @@ class UI(QDialog,QWidget):   #Qwidget, Qwindow
         self.ui.Vy_doubleSpinBox.setValue(0.0)
         self.ui.W_doubleSpinBox.setValue(0.0)
         self.set_vel_veiw_scene2()
+
+    def grap_init(self):
+        imu_plot_x_max = 100
+        imu_plot_y_max = 100
+
+        self.time_x = list(range(imu_plot_x_max))
+
+        self.accel_ang_y = [[0 for j in range(imu_plot_y_max)] for i in range(3)]
+        self.grap_accel_ang = pg.PlotWidget()
+        self.grap_accel_ang.setBackground('w')
+        self.grap_accel_ang.setTitle("Imu angular velocity ")
+        self.ui.Imu_layout.addWidget(self.grap_accel_ang,stretch=1)
+        self.grap_accel_ang.addLegend(offset=(1,1),brush=pg.mkBrush(color=(255,255,255)))
+        self.ang_accel_line_x = self.grap_accel_ang.plot(self.time_x, self.accel_ang_y[0][:],
+                                                         name="asngular_velocity_x",
+                                                         pen=pg.mkPen(color=(255, 0, 0)))
+        self.ang_accel_line_y = self.grap_accel_ang.plot(self.time_x, self.accel_ang_y[1][:], name="angular_velocity_y",
+                                                         pen=pg.mkPen(color=(0, 255, 0)))
+        self.ang_accel_line_z = self.grap_accel_ang.plot(self.time_x, self.accel_ang_y[2][:], name="angular_velocity_z",
+                                                         pen=pg.mkPen(color=(0, 0, 255)))
+
+
+
+        self.accel_linear_y = [[0 for j in range(imu_plot_y_max)] for i in range(3)]
+        self.grap_accel_linear = pg.PlotWidget()
+        self.grap_accel_linear.setBackground('w')
+        self.grap_accel_linear.setTitle("Imu linear velocity ")
+        self.ui.Imu_layout.addWidget(self.grap_accel_linear,stretch=1)
+        self.grap_accel_linear.addLegend(offset=(1,1),brush=pg.mkBrush(color=(255,255,255)))
+        self.linear_accel_line_x = self.grap_accel_linear.plot(self.time_x, self.accel_linear_y[0][:],
+                                                               name="linear_velocity_x",
+                                                               pen=pg.mkPen(color=(255, 0, 0)))
+        self.linear_accel_line_y = self.grap_accel_linear.plot(self.time_x, self.accel_linear_y[1][:],
+                                                               name="linear_velocity_y",
+                                                               pen=pg.mkPen(color=(0, 255, 0)))
+        self.linear_accel_line_z = self.grap_accel_linear.plot(self.time_x, self.accel_linear_y[2][:],
+                                                               name="linear_velocity_z",
+                                                               pen=pg.mkPen(color=(0, 0, 255)))
+
+
+        self.odme_y = [[0 for j in range(imu_plot_y_max)] for i in range(3)]
+        self.grap_odme = pg.PlotWidget()
+        self.grap_odme.setBackground('w')
+        self.grap_odme.setTitle("Imu orientation ")
+        self.ui.Imu_layout.addWidget(self.grap_odme,stretch=1)
+        self.grap_odme.addLegend(offset=(1,1),brush=pg.mkBrush(color=(255,255,255)))
+        self.odme_line_x = self.grap_odme.plot(self.time_x, self.odme_y[0][:],
+                                               name="odme_x",
+                                               pen=pg.mkPen(color=(255, 0, 0)))
+        self.odme_line_y = self.grap_odme.plot(self.time_x, self.odme_y[1][:],
+                                               name="odme_y",
+                                               pen=pg.mkPen(color=(0, 255, 0)))
+        self.odme_line_w = self.grap_odme.plot(self.time_x, self.odme_y[2][:],
+                                               name="odme_w",
+                                               pen=pg.mkPen(color=(0, 0, 255)))
+
+
 
 
 

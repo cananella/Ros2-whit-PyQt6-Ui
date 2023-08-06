@@ -309,9 +309,9 @@ class Ui_mainbot_contorl_window(object):
         self.tab_2.setObjectName("tab_2")
         self.gridLayout_8 = QtWidgets.QGridLayout(self.tab_2)
         self.gridLayout_8.setObjectName("gridLayout_8")
-        self.imu_graph_widget = QtWidgets.QWidget(parent=self.tab_2)
-        self.imu_graph_widget.setObjectName("imu_graph_widget")
-        self.gridLayout_8.addWidget(self.imu_graph_widget, 0, 0, 1, 1)
+        self.Imu_graph_box = QtWidgets.QGroupBox(parent=self.tab_2)
+        self.Imu_graph_box.setObjectName("Imu_graph_box")
+        self.gridLayout_8.addWidget(self.Imu_graph_box, 0, 0, 1, 1)
         self.tabWidget_2.addTab(self.tab_2, "")
         self.tab_3 = QtWidgets.QWidget()
         self.tab_3.setObjectName("tab_3")
@@ -328,7 +328,7 @@ class Ui_mainbot_contorl_window(object):
         mainbot_contorl_window.setStatusBar(self.statusbar)
 
         self.retranslateUi(mainbot_contorl_window)
-        self.tabWidget_2.setCurrentIndex(0)
+        self.tabWidget_2.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(mainbot_contorl_window)
 
     def retranslateUi(self, mainbot_contorl_window):
@@ -359,6 +359,7 @@ class Ui_mainbot_contorl_window(object):
         self.laser_scan_view_state.setText(_translate("mainbot_contorl_window", "laser scan view"))
         self.mapping_state.setText(_translate("mainbot_contorl_window", "mapping"))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_1), _translate("mainbot_contorl_window", "map"))
+        self.Imu_graph_box.setTitle(_translate("mainbot_contorl_window", "IMU graph"))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_2), _translate("mainbot_contorl_window", "Imu graph"))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_3), _translate("mainbot_contorl_window", "tab"))
 
